@@ -2,11 +2,14 @@ package main
 
 import "sync"
 
+// MemStore is a thread-safe, in-memory implementation of Store.
+// Useful for local development and testing without a database.
 type MemStore struct {
 	mu   sync.RWMutex
 	data map[string]QRCode
 }
 
+// NewMemStore returns an initialised MemStore.
 func NewMemStore() *MemStore {
 	return &MemStore{data: make(map[string]QRCode)}
 }
@@ -47,4 +50,16 @@ func (s *MemStore) GetByClientNumber(phone string) (QRCode, error) {
 		}
 	}
 	return QRCode{}, ErrNotFound
+}
+
+func (s *MemStore) MarkAsUsed(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	qr, ok := s.data[id]
+	if !ok {
+		return ErrNotFound
+	}
+	qr.Used = true
+	s.data[id] = qr
+	return nil
 }

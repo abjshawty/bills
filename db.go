@@ -8,10 +8,12 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
+// PostgresStore is a Store backed by a PostgreSQL database.
 type PostgresStore struct {
 	db *sql.DB
 }
 
+// NewPostgresStore opens and pings a Postgres connection using connStr.
 func NewPostgresStore(connStr string) (*PostgresStore, error) {
 	db, err := sql.Open("pgx", connStr)
 	if err != nil {
@@ -69,4 +71,20 @@ func (s *PostgresStore) GetByClientNumber(phone string) (QRCode, error) {
 		return QRCode{}, ErrNotFound
 	}
 	return qr, err
+}
+
+// MarkAsUsed sets the used flag to true for the ticket with the given ID.
+func (s *PostgresStore) MarkAsUsed(id string) error {
+	res, err := s.db.Exec(`UPDATE qrcodes SET used = true WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
