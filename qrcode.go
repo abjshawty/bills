@@ -22,8 +22,8 @@ type Store interface {
 	List() ([]QRCode, error)
 	// GetByID returns the ticket with the given ID, or ErrNotFound.
 	GetByID(id string) (QRCode, error)
-	// GetByClientNumber returns the ticket for the given phone number, or ErrNotFound.
-	GetByClientNumber(phone string) (QRCode, error)
+	// GetByClientNumber returns all tickets for the given phone number, or ErrNotFound.
+	GetByClientNumber(phone string) ([]QRCode, error)
 	// MarkAsUsed marks the ticket with the given ID as used.
 	MarkAsUsed(id string) error
 }

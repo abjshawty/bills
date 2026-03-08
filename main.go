@@ -28,7 +28,12 @@ func main() {
 		port = "9000"
 	}
 
-	h := &Handler{store: store}
+	baseURL := os.Getenv("BASE_URL")
+	if baseURL == "" {
+		baseURL = "http://localhost:9000"
+	}
+
+	h := &Handler{store: store, baseURL: baseURL}
 
 	mux := http.NewServeMux()
 
@@ -38,7 +43,7 @@ func main() {
 	mux.HandleFunc("GET /qrcodes/phone/{phone}", h.GetByClientNumber)
 	mux.HandleFunc("GET /qrcodes/{id}", h.GetByID)
 	mux.HandleFunc("PATCH /qrcodes/{id}/use", h.MarkAsUsed)
-
+	mux.HandleFunc("GET /qrcodes/{id}/use", h.MarkAsUsed)
 	// API documentation
 	mux.HandleFunc("GET /docs/", swaggerUI)
 	mux.HandleFunc("GET /docs/openapi.yaml", swaggerUI)

@@ -10,12 +10,13 @@ import (
 
 // Handler holds the Store and exposes HTTP handler methods.
 type Handler struct {
-	store Store
+	store   Store
+	baseURL string
 }
 
 // Create handles POST /qrcodes.
 // It decodes a QRCode from the request body, generates a UUID for the ID,
-// persists it, and returns the created ticket as JSON.
+// derives the image URL from BASE_URL, persists it, and returns the created ticket as JSON.
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	var qr QRCode
 	if err := json.NewDecoder(r.Body).Decode(&qr); err != nil {
@@ -23,6 +24,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	qr.ID = uuid.New().String()
+	qr.Image = h.baseURL + "/qrcodes/" + qr.ID + "/use"
 	if err := h.store.Create(qr); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -62,10 +64,10 @@ func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetByClientNumber handles GET /qrcodes/phone/{phone}.
-// It returns the ticket associated with the given phone number, or 404 if not found.
+// It returns all tickets associated with the given phone number, or 404 if none found.
 func (h *Handler) GetByClientNumber(w http.ResponseWriter, r *http.Request) {
 	phone := r.PathValue("phone")
-	qr, err := h.store.GetByClientNumber(phone)
+	qrs, err := h.store.GetByClientNumber(phone)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			http.Error(w, "not found", http.StatusNotFound)
@@ -75,7 +77,7 @@ func (h *Handler) GetByClientNumber(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(qr)
+	json.NewEncoder(w).Encode(qrs)
 }
 
 // MarkAsUsed handles PATCH /qrcodes/{id}/use.

@@ -41,15 +41,19 @@ func (s *MemStore) GetByID(id string) (QRCode, error) {
 	return qr, nil
 }
 
-func (s *MemStore) GetByClientNumber(phone string) (QRCode, error) {
+func (s *MemStore) GetByClientNumber(phone string) ([]QRCode, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	var list []QRCode
 	for _, qr := range s.data {
 		if qr.ClientNumber == phone {
-			return qr, nil
+			list = append(list, qr)
 		}
 	}
-	return QRCode{}, ErrNotFound
+	if len(list) == 0 {
+		return nil, ErrNotFound
+	}
+	return list, nil
 }
 
 func (s *MemStore) MarkAsUsed(id string) error {

@@ -62,15 +62,30 @@ func (s *PostgresStore) GetByID(id string) (QRCode, error) {
 	return qr, err
 }
 
-func (s *PostgresStore) GetByClientNumber(phone string) (QRCode, error) {
-	var qr QRCode
-	err := s.db.QueryRow(
+func (s *PostgresStore) GetByClientNumber(phone string) ([]QRCode, error) {
+	rows, err := s.db.Query(
 		`SELECT id, image, client_number, used FROM qrcodes WHERE client_number = $1`, phone,
-	).Scan(&qr.ID, &qr.Image, &qr.ClientNumber, &qr.Used)
-	if errors.Is(err, sql.ErrNoRows) {
-		return QRCode{}, ErrNotFound
+	)
+	if err != nil {
+		return nil, err
 	}
-	return qr, err
+	defer rows.Close()
+
+	var list []QRCode
+	for rows.Next() {
+		var qr QRCode
+		if err := rows.Scan(&qr.ID, &qr.Image, &qr.ClientNumber, &qr.Used); err != nil {
+			return nil, err
+		}
+		list = append(list, qr)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(list) == 0 {
+		return nil, ErrNotFound
+	}
+	return list, nil
 }
 
 // MarkAsUsed sets the used flag to true for the ticket with the given ID.
