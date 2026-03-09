@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-
 	"github.com/joho/godotenv"
 )
 
@@ -43,7 +42,8 @@ func main() {
 	mux.HandleFunc("GET /qrcodes/phone/{phone}", h.GetByClientNumber)
 	mux.HandleFunc("GET /qrcodes/{id}", h.GetByID)
 	mux.HandleFunc("PATCH /qrcodes/{id}/use", h.MarkAsUsed)
-	mux.HandleFunc("GET /qrcodes/{id}/use", h.MarkAsUsed)
+	mux.HandleFunc("GET /scan/{id}", h.MarkAsUsed)
+
 	// API documentation
 	mux.HandleFunc("GET /docs/", swaggerUI)
 	mux.HandleFunc("GET /docs/openapi.yaml", swaggerUI)

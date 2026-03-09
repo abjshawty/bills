@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-
 	"github.com/google/uuid"
 )
 
@@ -24,7 +23,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	qr.ID = uuid.New().String()
-	qr.Image = h.baseURL + "/qrcodes/" + qr.ID + "/use"
+	qr.Image = h.baseURL + "/scan/" + qr.ID
 	if err := h.store.Create(qr); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
