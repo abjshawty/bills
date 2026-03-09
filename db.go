@@ -25,6 +25,18 @@ func NewPostgresStore(connStr string) (*PostgresStore, error) {
 	return &PostgresStore{db: db}, nil
 }
 
+// Migrate creates the qrcodes table if it does not already exist.
+func (s *PostgresStore) Migrate() error {
+	_, err := s.db.Exec(`
+		CREATE TABLE IF NOT EXISTS qrcodes (
+			id            TEXT PRIMARY KEY,
+			image         TEXT        NOT NULL,
+			client_number TEXT        NOT NULL,
+			used          BOOLEAN     NOT NULL DEFAULT false
+		)`)
+	return err
+}
+
 func (s *PostgresStore) Create(qr QRCode) error {
 	_, err := s.db.Exec(
 		`INSERT INTO qrcodes (id, image, client_number, used) VALUES ($1, $2, $3, $4)`,

@@ -21,6 +21,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	if err := store.Migrate(); err != nil {
+		log.Fatal("migration failed:", err)
+	}
 
 	port := os.Getenv("PORT")
 	if port == "" {
