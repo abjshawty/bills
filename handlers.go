@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+
 	"github.com/google/uuid"
+	qrcodegen "github.com/skip2/go-qrcode"
 )
 
 // Handler holds the Store and exposes HTTP handler methods.
@@ -77,6 +79,30 @@ func (h *Handler) GetByClientNumber(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(qrs)
+}
+
+// GetImage handles GET /image/{id}.
+// It returns a PNG of the QR code whose content is the base64-encoded scan URL.
+func (h *Handler) GetImage(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	qr, err := h.store.GetByID(id)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	png, err := qrcodegen.Encode(qr.Image, qrcodegen.Medium, 256)
+	if err != nil {
+		http.Error(w, "failed to generate QR code", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "image/png")
+	w.Write(png)
 }
 
 // MarkAsUsed handles PATCH /qrcodes/{id}/use.

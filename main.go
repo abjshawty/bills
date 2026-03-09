@@ -46,6 +46,7 @@ func main() {
 	mux.HandleFunc("GET /qrcodes/{id}", h.GetByID)
 	mux.HandleFunc("PATCH /qrcodes/{id}/use", h.MarkAsUsed)
 	mux.HandleFunc("GET /scan/{id}", h.MarkAsUsed)
+	mux.HandleFunc("GET /image/{id}", h.GetImage)
 
 	// API documentation
 	mux.HandleFunc("GET /docs/", swaggerUI)
