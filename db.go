@@ -4,9 +4,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
+
+// ErrDuplicateClientNumber is returned when attempting to create a ticket with an existing client_number.
+var ErrDuplicateClientNumber = errors.New("client number already exists")
 
 // PostgresStore is a Store backed by a PostgreSQL database.
 type PostgresStore struct {
@@ -31,22 +35,30 @@ func (s *PostgresStore) Migrate() error {
 		CREATE TABLE IF NOT EXISTS qrcodes (
 			id            TEXT PRIMARY KEY,
 			image         TEXT        NOT NULL,
-			client_number TEXT        NOT NULL,
-			used          BOOLEAN     NOT NULL DEFAULT false
+			client_number TEXT        NOT NULL UNIQUE,
+			used          BOOLEAN     NOT NULL DEFAULT false,
+			created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			used_at       TIMESTAMPTZ
 		)`)
 	return err
 }
 
 func (s *PostgresStore) Create(qr QRCode) error {
 	_, err := s.db.Exec(
-		`INSERT INTO qrcodes (id, image, client_number, used) VALUES ($1, $2, $3, $4)`,
-		qr.ID, qr.Image, qr.ClientNumber, qr.Used,
+		`INSERT INTO qrcodes (id, image, client_number, used, created_at) VALUES ($1, $2, $3, $4, $5)`,
+		qr.ID, qr.Image, qr.ClientNumber, qr.Used, qr.CreatedAt,
 	)
-	return err
+	if err != nil {
+		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
+			return ErrDuplicateClientNumber
+		}
+		return err
+	}
+	return nil
 }
 
 func (s *PostgresStore) List() ([]QRCode, error) {
-	rows, err := s.db.Query(`SELECT id, image, client_number, used FROM qrcodes`)
+	rows, err := s.db.Query(`SELECT id, image, client_number, used, created_at, used_at FROM qrcodes`)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +67,7 @@ func (s *PostgresStore) List() ([]QRCode, error) {
 	var list []QRCode
 	for rows.Next() {
 		var qr QRCode
-		if err := rows.Scan(&qr.ID, &qr.Image, &qr.ClientNumber, &qr.Used); err != nil {
+		if err := rows.Scan(&qr.ID, &qr.Image, &qr.ClientNumber, &qr.Used, &qr.CreatedAt, &qr.UsedAt); err != nil {
 			return nil, err
 		}
 		list = append(list, qr)
@@ -66,8 +78,8 @@ func (s *PostgresStore) List() ([]QRCode, error) {
 func (s *PostgresStore) GetByID(id string) (QRCode, error) {
 	var qr QRCode
 	err := s.db.QueryRow(
-		`SELECT id, image, client_number, used FROM qrcodes WHERE id = $1`, id,
-	).Scan(&qr.ID, &qr.Image, &qr.ClientNumber, &qr.Used)
+		`SELECT id, image, client_number, used, created_at, used_at FROM qrcodes WHERE id = $1`, id,
+	).Scan(&qr.ID, &qr.Image, &qr.ClientNumber, &qr.Used, &qr.CreatedAt, &qr.UsedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return QRCode{}, ErrNotFound
 	}
@@ -76,7 +88,7 @@ func (s *PostgresStore) GetByID(id string) (QRCode, error) {
 
 func (s *PostgresStore) GetByClientNumber(phone string) ([]QRCode, error) {
 	rows, err := s.db.Query(
-		`SELECT id, image, client_number, used FROM qrcodes WHERE client_number = $1`, phone,
+		`SELECT id, image, client_number, used, created_at, used_at FROM qrcodes WHERE client_number = $1`, phone,
 	)
 	if err != nil {
 		return nil, err
@@ -86,7 +98,7 @@ func (s *PostgresStore) GetByClientNumber(phone string) ([]QRCode, error) {
 	var list []QRCode
 	for rows.Next() {
 		var qr QRCode
-		if err := rows.Scan(&qr.ID, &qr.Image, &qr.ClientNumber, &qr.Used); err != nil {
+		if err := rows.Scan(&qr.ID, &qr.Image, &qr.ClientNumber, &qr.Used, &qr.CreatedAt, &qr.UsedAt); err != nil {
 			return nil, err
 		}
 		list = append(list, qr)
@@ -102,7 +114,31 @@ func (s *PostgresStore) GetByClientNumber(phone string) ([]QRCode, error) {
 
 // MarkAsUsed sets the used flag to true for the ticket with the given ID.
 func (s *PostgresStore) MarkAsUsed(id string) error {
-	res, err := s.db.Exec(`UPDATE qrcodes SET used = true WHERE id = $1`, id)
+	qr, err := s.GetByID(id)
+	if err != nil {
+		return err
+	}
+	if qr.Used {
+		return ErrAlreadyUsed
+	}
+
+	res, err := s.db.Exec(`UPDATE qrcodes SET used = true, used_at = NOW() WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// Delete removes the ticket with the given ID.
+func (s *PostgresStore) Delete(id string) error {
+	res, err := s.db.Exec(`DELETE FROM qrcodes WHERE id = $1`, id)
 	if err != nil {
 		return err
 	}

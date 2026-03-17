@@ -1,6 +1,9 @@
 package main
 
-import "sync"
+import (
+	"sync"
+	"time"
+)
 
 // MemStore is a thread-safe, in-memory implementation of Store.
 // Useful for local development and testing without a database.
@@ -17,6 +20,12 @@ func NewMemStore() *MemStore {
 func (s *MemStore) Create(qr QRCode) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	for _, existing := range s.data {
+		if existing.ClientNumber == qr.ClientNumber {
+			return ErrDuplicateClientNumber
+		}
+	}
+	qr.CreatedAt = time.Now()
 	s.data[qr.ID] = qr
 	return nil
 }
@@ -63,7 +72,22 @@ func (s *MemStore) MarkAsUsed(id string) error {
 	if !ok {
 		return ErrNotFound
 	}
+	if qr.Used {
+		return ErrAlreadyUsed
+	}
+	now := time.Now()
 	qr.Used = true
+	qr.UsedAt = &now
 	s.data[id] = qr
+	return nil
+}
+
+func (s *MemStore) Delete(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.data[id]; !ok {
+		return ErrNotFound
+	}
+	delete(s.data, id)
 	return nil
 }

@@ -4,7 +4,6 @@ import (
 	"net/http"
 )
 
-// openAPISpec is the OpenAPI 3.0 specification for the tickets API.
 const openAPISpec = `
 openapi: 3.0.3
 info:
@@ -32,7 +31,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/QRCode'
         '400':
-          description: Invalid request body
+          description: Invalid request body or validation error
+        '409':
+          description: Client number already exists
         '500':
           description: Internal server error
     get:
@@ -65,6 +66,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/QRCode'
+        '404':
+          description: Ticket not found
+        '500':
+          description: Internal server error
+    delete:
+      summary: Delete a ticket
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Ticket deleted
         '404':
           description: Ticket not found
         '500':
@@ -109,8 +126,53 @@ paths:
                 $ref: '#/components/schemas/QRCode'
         '404':
           description: Ticket not found
+        '409':
+          description: Ticket already used
         '500':
           description: Internal server error
+  /image/{id}:
+    get:
+      summary: Get QR code image
+      description: Returns a PNG image of the QR code.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: QR code image
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Ticket not found
+  /scan/{id}:
+    get:
+      summary: Scan a ticket
+      description: Marks the ticket as used and returns a styled HTML page with the scan result.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Scan result page
+          content:
+            text/html:
+              schema:
+                type: string
+        '404':
+          description: Ticket not found
+        '409':
+          description: Ticket already used
 components:
   schemas:
     QRCode:
@@ -122,28 +184,32 @@ components:
           readOnly: true
         image:
           type: string
-          description: Base64-encoded QR code image
+          description: URL to the QR code image
         client_number:
           type: string
           description: Client phone number
         used:
           type: boolean
           description: Whether the ticket has been scanned
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the ticket was created
+        used_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when the ticket was scanned (null if not used)
     QRCodeInput:
       type: object
       required:
-        - image
         - client_number
       properties:
-        image:
-          type: string
-          description: Base64-encoded QR code image
         client_number:
           type: string
-          description: Client phone number
+          description: Client phone number (must be numeric)
 `
 
-// swaggerUI serves an HTML page that renders the OpenAPI spec via Swagger UI.
 func swaggerUI(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/docs/openapi.yaml" {
 		w.Header().Set("Content-Type", "application/yaml")

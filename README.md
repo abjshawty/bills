@@ -21,7 +21,7 @@ Timmy
 ```bash
 git clone <repo>
 cd bills
-cp .env.example .env   # fill in your DATABASE_URL
+cp .env.sample .env   # fill in your DATABASE_URL
 go run .
 ```
 
@@ -33,6 +33,7 @@ The server starts on the port defined in `.env` (default `9000`).
 |----------|----------|---------|-------------|
 | `DATABASE_URL` | yes | — | Postgres connection string |
 | `PORT` | no | `9000` | Port the server listens on |
+| `BASE_URL` | no | `http://localhost:9000` | Base URL for generating QR code URLs |
 
 Create a `.env` file in the project root (it is git-ignored):
 
@@ -57,6 +58,9 @@ The raw OpenAPI spec is at **`/docs/openapi.yaml`**.
 | `GET` | `/qrcodes/{id}` | Get a ticket by ID |
 | `GET` | `/qrcodes/phone/{phone}` | Get a ticket by client phone number |
 | `PATCH` | `/qrcodes/{id}/use` | Mark a ticket as used |
+| `DELETE` | `/qrcodes/{id}` | Delete a ticket |
+| `GET` | `/image/{id}` | Get QR code image (PNG) |
+| `GET` | `/scan/{id}` | Scan a ticket (marks as used, returns HTML page) |
 
 ### Example: create a ticket
 
@@ -90,6 +94,8 @@ CREATE TABLE qrcodes (
   id            TEXT PRIMARY KEY,
   image         TEXT NOT NULL,
   client_number TEXT NOT NULL UNIQUE,
-  used          BOOLEAN NOT NULL DEFAULT false
+  used          BOOLEAN NOT NULL DEFAULT false,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  used_at       TIMESTAMPTZ
 );
 ```
