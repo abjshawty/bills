@@ -1,4 +1,4 @@
-module tickets-go
+module tickets
 
 go 1.24.0
 
