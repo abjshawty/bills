@@ -2,12 +2,17 @@ package main
 
 import (
 	"database/sql"
+	"embed"
 	"errors"
 	"fmt"
 	"strings"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/pressly/goose/v3"
 )
+
+//go:embed migrations/*.sql
+var migrationsFS embed.FS
 
 // ErrDuplicateClientNumber is returned when attempting to create a ticket with an existing client_number.
 var ErrDuplicateClientNumber = errors.New("client number already exists")
@@ -29,18 +34,16 @@ func NewPostgresStore(connStr string) (*PostgresStore, error) {
 	return &PostgresStore{db: db}, nil
 }
 
-// Migrate creates the qrcodes table if it does not already exist.
+// Migrate runs all pending SQL migrations from the embedded migrations directory.
 func (s *PostgresStore) Migrate() error {
-	_, err := s.db.Exec(`
-		CREATE TABLE IF NOT EXISTS qrcodes (
-			id            TEXT PRIMARY KEY,
-			image         TEXT        NOT NULL,
-			client_number TEXT        NOT NULL UNIQUE,
-			used          BOOLEAN     NOT NULL DEFAULT false,
-			created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			used_at       TIMESTAMPTZ
-		)`)
-	return err
+	goose.SetBaseFS(migrationsFS)
+	if err := goose.SetDialect("postgres"); err != nil {
+		return fmt.Errorf("goose set dialect: %w", err)
+	}
+	if err := goose.Up(s.db, "migrations"); err != nil {
+		return fmt.Errorf("goose up: %w", err)
+	}
+	return nil
 }
 
 func (s *PostgresStore) Create(qr QRCode) error {
